@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     filters.locations?.length ? `Location: ${filters.locations.join(", ")}` : "",
   ].filter(Boolean).join("\n");
 
-  const system = `You are a sports industry career advisor. Search for real current job postings and return ONLY a valid JSON array. No markdown, no explanation, no preamble, no code fences. Just a raw JSON array starting with [ and ending with ]. Each job object must have exactly these keys: title, company, location, description (2 sentences max), url (real URL if found, else empty string), score (0-100 fit vs candidate), level, orgType, functionType, league.`;
+  const system = `You are a sports industry career advisor. Search for real current job postings and return ONLY a valid JSON array. No markdown, no explanation, no preamble, no code fences, no citation tags. Just a raw JSON array starting with [ and ending with ]. Each job object must have exactly these keys: title, company, location, description (2 plain sentences, no HTML, no cite tags, no markup), url (real URL if confirmed, else empty string), score (0-100 fit vs candidate), level, orgType, functionType, league.`;
 
   const searchFocus = overrideQuery
     ? `SPECIFIC SEARCH REQUEST: ${overrideQuery}`
@@ -24,8 +24,9 @@ export default async function handler(req, res) {
 CANDIDATE CONTEXT:
 ${context || "Sports management master's student seeking entry-level or coordinator roles."}
 
-FILTERS:
+FILTERS — YOU MUST STRICTLY FOLLOW THESE:
 ${filterDesc || "No filters set — show best matches across all categories."}
+Do not return jobs outside these filters. If leagues include NHL, only return NHL jobs. If functions include Operations and Marketing, only return those. Filters are hard requirements, not suggestions.
 
 ${searchFocus}
 
@@ -68,7 +69,10 @@ Return 8-12 jobs as a raw JSON array only. No markdown, no backticks, just the a
     }
 
     try {
-      const jobs = JSON.parse(match[0]);
+      const jobs = JSON.parse(match[0]).map(job => ({
+        ...job,
+        description: (job.description || "").replace(/<\/?cite[^>]*>/g, "").trim(),
+      }));
       return res.json({ jobs });
     } catch {
       const partial = match[0].substring(0, match[0].lastIndexOf("}") + 1) + "]";
