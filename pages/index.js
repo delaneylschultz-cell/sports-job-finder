@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 async function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -40,7 +40,15 @@ function UploadZone({ label, hint, files, onAdd, onRemove, maxFiles = 1 }) {
   );
 }
 
-const LEVELS    = ["Entry-level", "Internship", "Mid-level", "Senior"];
+const STARTER_PROMPTS = [
+  "What types of roles should I target with my background?",
+  "What's the best way to break into the NFL front office?",
+  "Operations vs marketing — which is an easier entry point?",
+  "What should I add to my resume to stand out?",
+  "Find me NBA coordinator roles in NYC",
+];
+
+
 const ORG_TYPES = ["Pro team", "College athletics", "League office", "Agency", "Venue / arena", "Media / broadcast"];
 const FUNCTIONS = ["Operations", "Marketing", "Sales", "Analytics", "Communications / PR", "Sponsorship", "Athlete services", "Facilities"];
 const LEAGUES   = ["NFL", "NBA", "MLB", "MLS", "NHL", "WNBA", "NCAA", "Any"];
@@ -171,13 +179,19 @@ export default function Home() {
   const [statuses, setStatuses]     = useState({});
   const [coverLetters, setCoverLetters] = useState({});
   const [drafting, setDrafting]     = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput]   = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef(null);
 
   useEffect(() => {
     try {
       const s = localStorage.getItem("sj_saved");
       const st = localStorage.getItem("sj_statuses");
+      const ch = localStorage.getItem("sj_chat");
       if (s) setSaved(JSON.parse(s));
       if (st) setStatuses(JSON.parse(st));
+      if (ch) setChatMessages(JSON.parse(ch));
     } catch {}
   }, []);
 
@@ -185,12 +199,12 @@ export default function Home() {
     setFilters(f => ({ ...f, [key]: f[key].includes(val) ? f[key].filter(x => x !== val) : [...f[key], val] }));
   }
 
-  async function search() {
-    setLoading(true); setError(""); setJobs([]); setTab("search");
+  async function search(overrideQuery) {
+    setLoading(true); setError(""); setJobs([]);
     try {
       const resume = resumeFiles[0] ? { data: resumeFiles[0].data, mediaType: resumeFiles[0].mediaType } : null;
       const coverLetters = coverFiles.map(f => ({ data: f.data, mediaType: f.mediaType }));
-      const r = await fetch("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ context, filters, resume, coverLetters }) });
+      const r = await fetch("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ context, filters, resume, coverLetters, overrideQuery }) });
       const d = await r.json();
       if (d.error) throw new Error(d.error);
       setJobs(d.jobs || []);
@@ -225,6 +239,45 @@ export default function Home() {
       localStorage.setItem("sj_statuses", JSON.stringify(next));
       return next;
     });
+  }
+
+  async function sendChat(text) {
+    const userMsg = { role: "user", content: text };
+    const newMessages = [...chatMessages, userMsg];
+    setChatMessages(newMessages);
+    localStorage.setItem("sj_chat", JSON.stringify(newMessages));
+    setChatInput("");
+    setChatLoading(true);
+    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+
+    try {
+      const resume = resumeFiles[0] ? { data: resumeFiles[0].data, mediaType: resumeFiles[0].mediaType } : null;
+      const r = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: newMessages, context, resume }),
+      });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+
+      const assistantMsg = { role: "assistant", content: d.reply };
+      const updated = [...newMessages, assistantMsg];
+      setChatMessages(updated);
+      localStorage.setItem("sj_chat", JSON.stringify(updated));
+
+      if (d.searchParams) {
+        if (d.searchParams.filters) setFilters(f => ({ ...f, ...d.searchParams.filters }));
+        setTab("search");
+        await search(d.searchParams.query);
+      }
+    } catch (e) {
+      const errMsg = { role: "assistant", content: "Sorry, something went wrong. Please try again." };
+      const updated = [...newMessages, errMsg];
+      setChatMessages(updated);
+      localStorage.setItem("sj_chat", JSON.stringify(updated));
+    }
+    setChatLoading(false);
+    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
   }
 
   const sorted = [...jobs].sort((a, b) => sortBy === "score" ? b.score - a.score : (a.orgType || "").localeCompare(b.orgType || ""));
@@ -267,8 +320,9 @@ export default function Home() {
       {/* Main */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ borderBottom: "0.5px solid #d0cec4", background: "#fff", padding: "0 24px", display: "flex", alignItems: "center", gap: 24, height: 52, flexShrink: 0 }}>
-          <TabBtn label="Results" count={jobs.length} active={tab === "search"} onClick={() => setTab("search")} />
-          <TabBtn label="Saved"   count={savedList.length} active={tab === "saved"} onClick={() => setTab("saved")} />
+          <TabBtn label="Results"  count={jobs.length}      active={tab === "search"} onClick={() => setTab("search")} />
+          <TabBtn label="Saved"    count={savedList.length} active={tab === "saved"}  onClick={() => setTab("saved")} />
+          <TabBtn label="Strategy" count={chatMessages.filter(m => m.role === "user").length} active={tab === "chat"} onClick={() => setTab("chat")} />
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
@@ -347,6 +401,56 @@ export default function Home() {
             </div>
           )}
 
+          {/* Strategy / chat tab */}
+          {tab === "chat" && (
+            <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+              {chatMessages.length === 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <p style={{ fontSize: 13, color: "#888", marginBottom: 12 }}>Ask anything about your job search strategy, or try one of these:</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {STARTER_PROMPTS.map((p, i) => (
+                      <button key={i} onClick={() => sendChat(p)} style={{ ...btn(false), textAlign: "left", padding: "8px 12px", fontSize: 13 }}>{p}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 16 }}>
+                {chatMessages.map((m, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+                    <div style={{
+                      maxWidth: "80%", padding: "10px 14px", borderRadius: 10, fontSize: 13, lineHeight: 1.7,
+                      background: m.role === "user" ? "#1a1a1a" : "#f0eeea",
+                      color: m.role === "user" ? "#fff" : "#1a1a1a",
+                    }}>
+                      {m.content}
+                    </div>
+                  </div>
+                ))}
+                {chatLoading && (
+                  <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                    <div style={{ padding: "10px 14px", borderRadius: 10, fontSize: 13, background: "#f0eeea", color: "#888" }}>Thinking...</div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+
+              <div style={{ display: "flex", gap: 8, marginTop: "auto", paddingTop: 16, borderTop: "0.5px solid #e0ddd6" }}>
+                <input
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && chatInput.trim() && sendChat(chatInput.trim())}
+                  placeholder="Ask about strategy, roles, or say 'find me NBA ops roles in NYC'..."
+                  style={{ flex: 1, fontSize: 13, padding: "8px 12px" }}
+                  disabled={chatLoading}
+                />
+                <button onClick={() => chatInput.trim() && sendChat(chatInput.trim())} disabled={chatLoading || !chatInput.trim()} style={{ ...btn(true), padding: "8px 16px", fontSize: 13 }}>Send</button>
+                {chatMessages.length > 0 && (
+                  <button onClick={() => { setChatMessages([]); localStorage.removeItem("sj_chat"); }} style={{ ...btn(false), fontSize: 13 }}>Clear</button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
