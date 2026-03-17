@@ -128,6 +128,10 @@ function JobCard({ job, savedKey, onSave, isSaved, onDraft, coverLetter, draftin
         <div>
           <div style={{ fontSize: 14, fontWeight: 500 }}>{job.title}</div>
           <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{job.company}{job.location ? ` · ${job.location}` : ""}</div>
+          <div style={{ fontSize: 11, color: "#aaa", marginTop: 2, display: "flex", gap: 8 }}>
+            {job.source && <span>Found on {job.source}</span>}
+            {job.postedDate && <span>· Posted {job.postedDate}</span>}
+          </div>
         </div>
         <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 500, background: fs.bg, color: fs.color, flexShrink: 0 }}>
           {job.score}% — {fs.label}
@@ -142,10 +146,9 @@ function JobCard({ job, savedKey, onSave, isSaved, onDraft, coverLetter, draftin
           onClick={() => { onDraft(job, savedKey); setShowCL(true); }}>
           {drafting === savedKey ? "Drafting..." : coverLetter ? "Redraft cover letter" : "Draft cover letter"}
         </button>
-        {job.url
-          ? <a href={job.url} target="_blank" rel="noopener noreferrer" style={{ ...btn(false), textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Search Google ↗</a>
-          : null
-        }
+        <a href={job.url} target="_blank" rel="noopener noreferrer" style={{ ...btn(false), textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+          {job.url?.includes("google.com") ? "Search Google ↗" : "View posting ↗"}
+        </a>
         <button style={btn(false)} onClick={() => onSave(job, savedKey)}>{isSaved ? "Unsave" : "Save"}</button>
       </div>
       {coverLetter && showCL && (

@@ -5,6 +5,8 @@ export default async function handler(req, res) {
 
   const { context, filters, resume, coverLetters, overrideQuery } = req.body;
 
+  const today = new Date().toISOString().split("T")[0];
+
   const filterDesc = [
     filters.levels?.length    ? `Level: ${filters.levels.join(", ")}` : "",
     filters.orgTypes?.length  ? `Org type: ${filters.orgTypes.join(", ")}` : "",
@@ -13,31 +15,45 @@ export default async function handler(req, res) {
     filters.locations?.length ? `Location: ${filters.locations.join(", ")}` : "",
   ].filter(Boolean).join("\n");
 
-  const system = `You are a sports industry career advisor. Search for real current job postings and return ONLY a valid JSON array. No markdown, no explanation, no preamble, no code fences, no citation tags. Just a raw JSON array starting with [ and ending with ]. Each job object must have exactly these keys: title, company, location, description (2 plain sentences, no HTML, no cite tags, no markup), url (real URL if confirmed, else empty string), score (0-100 fit vs candidate), level, orgType, functionType, league.`;
+  const searchQuery = overrideQuery ||
+    [
+      filters.leagues?.length   ? filters.leagues.join(" OR ") : "sports",
+      filters.functions?.length ? filters.functions.join(" OR ") : "",
+      filters.levels?.length    ? filters.levels[0] : "entry level",
+      filters.locations?.length ? filters.locations.join(" OR ") : "",
+    ].filter(Boolean).join(" ");
 
-  const searchFocus = overrideQuery
-    ? `SPECIFIC SEARCH REQUEST: ${overrideQuery}`
-    : `Search for sports management roles matching the filters and candidate profile above.`;
+  const system = `You are a job search assistant. Today's date is ${today}. Your only job is to search the web for real, currently open job postings and return them as JSON.
 
-  const promptText = `Find current sports management job postings for this candidate.
+ABSOLUTE RULES — breaking any of these is a complete failure:
+1. ONLY return jobs you found via web search in this session. Every single listing must come from an actual URL you retrieved.
+2. NEVER fabricate, invent, hallucinate, or guess any job listing or any field within a listing.
+3. NEVER return a job that was posted more than 60 days ago. Only active, open postings as of ${today}.
+4. For the "url" field: use the EXACT url from your search result where the job appears. If you do not have a confirmed working url, use "".
+5. For the "source" field: name the website you found it on (e.g. "Teamwork Online", "LinkedIn", "NBA Careers", "MLS Jobs").
+6. For the "postedDate" field: include the date posted if visible, otherwise "".
+7. Return ONLY a raw JSON array. No markdown, no backticks, no explanation, no HTML, no citation tags.
+8. If you can only find 2 real jobs, return 2. Never pad results with fake listings.
 
-CANDIDATE CONTEXT:
-${context || "Sports management master's student seeking entry-level or coordinator roles."}
+JSON format — each object must have exactly these keys:
+{"title":"","company":"","location":"","description":"2 plain sentences from the actual posting text","url":"","source":"","postedDate":"","score":0,"level":"","orgType":"","functionType":"","league":""}`;
 
-FILTERS — YOU MUST STRICTLY FOLLOW THESE:
-${filterDesc || "No filters set — show best matches across all categories."}
-Do not return jobs outside these filters. If leagues include NHL, only return NHL jobs. If functions include Operations and Marketing, only return those. Filters are hard requirements, not suggestions.
+  const promptText = `Today is ${today}. Search for REAL, CURRENTLY OPEN sports job postings using these searches:
 
-${searchFocus}
+1. Search: "${searchQuery} jobs ${today.slice(0,7)}" on teamworkonline.com
+2. Search: "${searchQuery} jobs" on linkedin.com/jobs  
+3. Search: "${searchQuery} careers" on official league/team websites
+4. Search: "sports management ${searchQuery} job posting ${today.slice(0,4)}"
 
-${resume ? "Use the uploaded resume to personalize fit scores." : ""}
-${coverLetters?.length ? "Use the uploaded cover letter examples to understand the candidate's background." : ""}
+FILTERS — only return jobs that match ALL of these. This is mandatory:
+${filterDesc || "No filters — return best matches across all sports."}
 
-Search Teamwork Online, LinkedIn, NBA/NFL/MLB/MLS/NHL careers pages, NCAA Market, and major sports org career sites.
+CANDIDATE CONTEXT (for scoring fit only, 0-100):
+${context || "Sports management master's student, entry-level."}
 
-IMPORTANT URL RULE: Only include a real url if you actually retrieved it from a web search result. If you did not find a confirmed working URL for a posting, set url to an empty string "". Never guess or construct a URL. A missing link is better than a broken one.
+After running all searches, return ONLY the jobs you confirmed exist in a search result. Include the exact source URL and website name for each. Strip all HTML and citation markup from descriptions.
 
-Return 8-12 jobs as a raw JSON array only. No markdown, no backticks, just the array.`;
+If filters are set, do not return jobs outside those filters under any circumstances.`;
 
   const userContent = [];
   if (resume) userContent.push({ type: "document", source: { type: "base64", media_type: resume.mediaType, data: resume.data }, title: "Candidate resume" });
@@ -64,15 +80,18 @@ Return 8-12 jobs as a raw JSON array only. No markdown, no backticks, just the a
     const match = clean.match(/\[[\s\S]*\]/);
 
     if (!match) {
-      console.error("No JSON array found in response:", text);
-      return res.status(500).json({ error: "Could not parse job results. Try again." });
+      console.error("No JSON array found:", text);
+      return res.status(500).json({ error: "No real job postings found. Try broader filters or a different search." });
     }
 
     try {
-      const jobs = JSON.parse(match[0]).map(job => ({
+      const raw = JSON.parse(match[0]);
+      const jobs = raw.map(job => ({
         ...job,
-        description: (job.description || "").replace(/<\/?cite[^>]*>/g, "").trim(),
-        url: `https://www.google.com/search?q=${encodeURIComponent((job.title || "") + " " + (job.company || "") + " job")}`,
+        description: (job.description || "").replace(/<\/?[^>]+(>|$)/g, "").trim(),
+        url: job.url && job.url.startsWith("http")
+          ? job.url
+          : `https://www.google.com/search?q=${encodeURIComponent((job.title || "") + " " + (job.company || "") + " job opening")}`,
       }));
       return res.json({ jobs });
     } catch {
@@ -80,7 +99,6 @@ Return 8-12 jobs as a raw JSON array only. No markdown, no backticks, just the a
       try {
         return res.json({ jobs: JSON.parse(partial) });
       } catch {
-        console.error("Parse failed:", match[0]);
         return res.status(500).json({ error: "Could not parse job results. Try again." });
       }
     }
