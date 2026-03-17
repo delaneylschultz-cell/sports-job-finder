@@ -72,6 +72,7 @@ Return 8-12 jobs as a raw JSON array only. No markdown, no backticks, just the a
       const jobs = JSON.parse(match[0]).map(job => ({
         ...job,
         description: (job.description || "").replace(/<\/?cite[^>]*>/g, "").trim(),
+        url: `https://www.google.com/search?q=${encodeURIComponent((job.title || "") + " " + (job.company || "") + " job")}`,
       }));
       return res.json({ jobs });
     } catch {

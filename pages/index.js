@@ -143,8 +143,8 @@ function JobCard({ job, savedKey, onSave, isSaved, onDraft, coverLetter, draftin
           {drafting === savedKey ? "Drafting..." : coverLetter ? "Redraft cover letter" : "Draft cover letter"}
         </button>
         {job.url
-          ? <a href={job.url} target="_blank" rel="noopener noreferrer" style={{ ...btn(false), textDecoration: "none", display: "inline-flex", alignItems: "center" }}>View posting ↗</a>
-          : <button style={{ ...btn(false), opacity: 0.45, cursor: "default" }} disabled>No link found</button>
+          ? <a href={job.url} target="_blank" rel="noopener noreferrer" style={{ ...btn(false), textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Search Google ↗</a>
+          : null
         }
         <button style={btn(false)} onClick={() => onSave(job, savedKey)}>{isSaved ? "Unsave" : "Save"}</button>
       </div>
