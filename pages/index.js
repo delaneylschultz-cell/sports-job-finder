@@ -422,6 +422,7 @@ export default function Home() {
                       maxWidth: "80%", padding: "10px 14px", borderRadius: 10, fontSize: 13, lineHeight: 1.7,
                       background: m.role === "user" ? "#1a1a1a" : "#f0eeea",
                       color: m.role === "user" ? "#fff" : "#1a1a1a",
+                      whiteSpace: "pre-wrap",
                     }}>
                       {m.content}
                     </div>

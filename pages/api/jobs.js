@@ -32,7 +32,11 @@ ${searchFocus}
 ${resume ? "Use the uploaded resume to personalize fit scores." : ""}
 ${coverLetters?.length ? "Use the uploaded cover letter examples to understand the candidate's background." : ""}
 
-Search Teamwork Online, LinkedIn, NBA/NFL/MLB/MLS/NHL careers pages, NCAA Market, and major sports org career sites. Return 8-12 jobs as a raw JSON array only. No markdown, no backticks, just the array.`;
+Search Teamwork Online, LinkedIn, NBA/NFL/MLB/MLS/NHL careers pages, NCAA Market, and major sports org career sites.
+
+IMPORTANT URL RULE: Only include a real url if you actually retrieved it from a web search result. If you did not find a confirmed working URL for a posting, set url to an empty string "". Never guess or construct a URL. A missing link is better than a broken one.
+
+Return 8-12 jobs as a raw JSON array only. No markdown, no backticks, just the array.`;
 
   const userContent = [];
   if (resume) userContent.push({ type: "document", source: { type: "base64", media_type: resume.mediaType, data: resume.data }, title: "Candidate resume" });
