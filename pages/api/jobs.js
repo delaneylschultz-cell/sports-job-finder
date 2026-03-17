@@ -41,11 +41,34 @@ Search Teamwork Online, LinkedIn, NBA/NFL/MLB/MLS/NHL careers pages, NCAA Market
       system,
       messages: [{ role: "user", content: userContent }],
     });
-    const text = msg.content.filter(b => b.type === "text").map(b => b.text).join("");
-    const match = text.match(/\[[\s\S]*\]/);
-    if (!match) return res.status(500).json({ error: "Could not parse job results. Try again." });
-    res.json({ jobs: JSON.parse(match[0]) });
+
+    const text = msg.content
+      .filter(b => b.type === "text")
+      .map(b => b.text)
+      .join("");
+
+    const clean = text.replace(/```json|```/g, "").trim();
+    const match = clean.match(/\[[\s\S]*\]/);
+
+    if (!match) {
+      console.error("Raw response:", text);
+      return res.status(500).json({ error: "Could not parse job results. Try again." });
+    }
+
+    try {
+      const jobs = JSON.parse(match[0]);
+      res.json({ jobs });
+    } catch (parseErr) {
+      const partial = match[0].substring(0, match[0].lastIndexOf("}") + 1) + "]";
+      try {
+        res.json({ jobs: JSON.parse(partial) });
+      } catch {
+        console.error("Parse failed:", match[0]);
+        res.status(500).json({ error: "Could not parse job results. Try again." });
+      }
+    }
   } catch (e) {
+    console.error("API error:", e);
     res.status(500).json({ error: e.message });
   }
 }
