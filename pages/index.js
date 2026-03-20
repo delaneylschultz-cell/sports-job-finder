@@ -1,163 +1,258 @@
 import { useState, useEffect, useRef } from "react";
 
-const LEVELS    = ["Entry-level", "Internship", "Mid-level", "Senior"];
-const ORG_TYPES = ["Pro team", "College athletics", "League office", "Agency", "Venue / arena", "Media / broadcast"];
-const FUNCTIONS = ["Operations", "Marketing", "Sales", "Analytics", "Communications / PR", "Sponsorship", "Athlete services", "Facilities"];
-const LEAGUES   = ["NFL", "NBA", "MLB", "MLS", "NHL", "WNBA", "NCAA", "Any"];
-const LOCATIONS = ["Remote ok", "NYC", "LA", "Chicago", "Boston", "Dallas", "Any US"];
-const STATUSES  = ["Saved", "Applied", "Interviewing", "Offer", "Pass"];
-
-const STARTER_PROMPTS = [
-  "What types of roles should I target with my background?",
-  "What's the best way to break into the NFL front office?",
-  "Operations vs marketing — which is an easier entry point?",
-  "What should I add to my resume to stand out?",
-  "Find me NBA coordinator roles in NYC",
-];
-
-const STATUS_STYLE = {
-  Saved:        { bg: "#f0eeea", color: "#666" },
-  Applied:      { bg: "#e6f1fb", color: "#185fa5" },
-  Interviewing: { bg: "#eeedfe", color: "#3c3489" },
-  Offer:        { bg: "#eaf3de", color: "#3b6d11" },
-  Pass:         { bg: "#fcebeb", color: "#a32d2d" },
-};
-
-function fitStyle(score) {
-  if (score >= 75) return { bg: "#eaf3de", color: "#3b6d11", label: "Strong fit" };
-  if (score >= 50) return { bg: "#faeeda", color: "#854f0b", label: "Decent fit" };
-  return { bg: "#fcebeb", color: "#a32d2d", label: "Stretch" };
-}
-
-const btn = (primary) => ({
-  padding: "5px 12px", borderRadius: 6, fontSize: 12, cursor: "pointer",
+const btn = (primary, small) => ({
+  padding: small ? "4px 12px" : "8px 18px",
+  borderRadius: 6, fontSize: small ? 12 : 13, cursor: "pointer",
   fontFamily: "inherit", border: primary ? "none" : "0.5px solid #d0cec4",
   background: primary ? "#1a1a1a" : "#fff", color: primary ? "#fff" : "#444",
+  fontWeight: primary ? 500 : 400,
 });
 
-async function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve({ data: r.result.split(",")[1], mediaType: file.type || "application/pdf" });
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-}
-
-function Pill({ label, active, onClick }) {
+function TabBtn({ label, active, onClick }) {
   return (
     <button onClick={onClick} style={{
-      padding: "4px 11px", borderRadius: 20, fontSize: 12, cursor: "pointer",
-      fontFamily: "inherit",
-      border: active ? "0.5px solid #afa9ec" : "0.5px solid #d0cec4",
-      background: active ? "#eeedfe" : "#fff",
-      color: active ? "#3c3489" : "#555",
-    }}>{label}</button>
-  );
-}
-
-function FilterGroup({ label, options, active, onToggle }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{ fontSize: 12, fontWeight: 500, color: "#666" }}>{label}</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-        {options.map(o => <Pill key={o} label={o} active={active.includes(o)} onClick={() => onToggle(o)} />)}
-      </div>
-    </div>
-  );
-}
-
-function Tag({ label }) {
-  return label ? <span style={{ padding: "3px 8px", borderRadius: 5, fontSize: 11, background: "#f0eeea", color: "#666" }}>{label}</span> : null;
-}
-
-function TabBtn({ label, count, active, onClick }) {
-  return (
-    <button onClick={onClick} style={{
-      padding: "0 4px", height: "100%", fontSize: 13,
+      padding: "0 4px", height: "100%", fontSize: 14,
       fontWeight: active ? 500 : 400, color: active ? "#1a1a1a" : "#888",
       background: "none", border: "none",
       borderBottom: active ? "2px solid #1a1a1a" : "2px solid transparent",
       cursor: "pointer", fontFamily: "inherit",
-      display: "flex", alignItems: "center", gap: 6,
-    }}>
-      {label}
-      {count > 0 && <span style={{ fontSize: 11, background: "#f0eeea", color: "#666", padding: "1px 7px", borderRadius: 20 }}>{count}</span>}
-    </button>
+    }}>{label}</button>
   );
 }
 
-function UploadZone({ label, files, onAdd, onRemove, maxFiles = 1 }) {
-  async function handleChange(e) {
-    const picked = Array.from(e.target.files || []);
-    for (const f of picked) {
-      if (files.length >= maxFiles) break;
-      const b64 = await fileToBase64(f);
-      onAdd({ name: f.name, ...b64 });
-    }
-    e.target.value = "";
-  }
+function FeedbackBlock({ feedback }) {
+  if (!feedback) return null;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{ fontSize: 12, fontWeight: 500, color: "#666" }}>
-        {label} <span style={{ color: "#aaa", fontWeight: 400 }}>(optional)</span>
-      </div>
-      {files.length < maxFiles && (
-        <label style={{ border: "1px dashed #c8c6bc", borderRadius: 8, padding: "10px 12px", textAlign: "center", background: "#fff", cursor: "pointer", display: "block" }}>
-          <div style={{ fontSize: 12, color: "#888" }}>Click to upload PDF or Word doc</div>
-          <input type="file" accept=".pdf,.doc,.docx" multiple={maxFiles > 1} onChange={handleChange} style={{ display: "none" }} />
-        </label>
-      )}
-      {files.map((f, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "#eaf3de", borderRadius: 6, fontSize: 12, color: "#3b6d11" }}>
-          <div style={{ width: 6, height: 6, background: "#639922", borderRadius: "50%", flexShrink: 0 }} />
-          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
-          <button onClick={() => onRemove(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "#3b6d11", fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
-        </div>
-      ))}
+    <div style={{ marginTop: 12, background: "#f9f8f5", borderRadius: 8, padding: "14px 16px", border: "0.5px solid #e0ddd6", fontSize: 13, lineHeight: 1.75, whiteSpace: "pre-wrap", color: "#1a1a1a" }}>
+      {feedback}
     </div>
   );
 }
 
-function JobCard({ job, savedKey, onSave, isSaved, onDraft, coverLetter, drafting }) {
-  const [showCL, setShowCL] = useState(false);
-  const fs = fitStyle(job.score);
+function BehavioralTab() {
+  const [questions, setQuestions] = useState([]);
+  const [loadingQs, setLoadingQs] = useState(false);
+  const [activeQ, setActiveQ] = useState(null);
+  const [answers, setAnswers] = useState({});
+  const [feedbacks, setFeedbacks] = useState({});
+  const [loadingFeedback, setLoadingFeedback] = useState(null);
+
+  async function generateQuestions() {
+    setLoadingQs(true);
+    setQuestions([]);
+    setActiveQ(null);
+    try {
+      const r = await fetch("/api/behavioral", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      const d = await r.json();
+      if (d.questions) setQuestions(d.questions);
+    } catch {}
+    setLoadingQs(false);
+  }
+
+  async function getFeedback(q, idx) {
+    const answer = answers[idx];
+    if (!answer?.trim()) return;
+    setLoadingFeedback(idx);
+    try {
+      const r = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: q, answer }),
+      });
+      const d = await r.json();
+      if (d.feedback) setFeedbacks(f => ({ ...f, [idx]: d.feedback }));
+    } catch {}
+    setLoadingFeedback(null);
+  }
+
   return (
-    <div style={{ border: "0.5px solid #d0cec4", borderRadius: 10, padding: "14px 16px", background: "#fff", display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 500 }}>{job.title}</div>
-          <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{job.company}{job.location ? ` · ${job.location}` : ""}</div>
-          <div style={{ fontSize: 11, color: "#aaa", marginTop: 2, display: "flex", gap: 8 }}>
-            {job.source && <span>Found on {job.source}</span>}
-            {job.postedDate && <span>· Posted {job.postedDate}</span>}
-          </div>
-        </div>
-        <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 500, background: fs.bg, color: fs.color, flexShrink: 0 }}>
-          {job.score}% — {fs.label}
-        </span>
-      </div>
-      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-        <Tag label={job.orgType} /><Tag label={job.functionType} /><Tag label={job.league} /><Tag label={job.level} />
-      </div>
-      <div style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>{job.description}</div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button style={btn(true)} disabled={drafting === savedKey}
-          onClick={() => { onDraft(job, savedKey); setShowCL(true); }}>
-          {drafting === savedKey ? "Drafting..." : coverLetter ? "Redraft cover letter" : "Draft cover letter"}
+    <div style={{ maxWidth: 760, margin: "0 auto" }}>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 6px" }}>Behavioral prep</h2>
+        <p style={{ fontSize: 13, color: "#888", margin: "0 0 16px" }}>
+          Generates real questions sourced from Palantir interview reports, Reddit, Glassdoor, and the DS role profile. Answer each one and get structured feedback.
+        </p>
+        <button onClick={generateQuestions} disabled={loadingQs} style={btn(true)}>
+          {loadingQs ? "Searching for questions..." : questions.length ? "Regenerate questions" : "Generate questions"}
         </button>
-        <a href={job.url} target="_blank" rel="noopener noreferrer" style={{ ...btn(false), textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
-          {job.url?.includes("google.com") ? "Search Google ↗" : "View posting ↗"}
-        </a>
-        <button style={btn(false)} onClick={() => onSave(job, savedKey)}>{isSaved ? "Unsave" : "Save"}</button>
       </div>
-      {coverLetter && showCL && (
-        <div style={{ background: "#f9f8f5", borderRadius: 8, padding: 12, fontSize: 12, lineHeight: 1.7, color: "#333", border: "0.5px solid #e0ddd6", whiteSpace: "pre-wrap" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontSize: 11, color: "#888", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em" }}>Draft cover letter</span>
-            <button style={btn(false)} onClick={() => navigator.clipboard.writeText(coverLetter)}>Copy</button>
+
+      {questions.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {questions.map((q, i) => (
+            <div key={i} style={{ border: "0.5px solid #d0cec4", borderRadius: 10, background: "#fff", overflow: "hidden" }}>
+              <button onClick={() => setActiveQ(activeQ === i ? null : i)} style={{
+                width: "100%", textAlign: "left", padding: "14px 16px", background: "none",
+                border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13,
+                fontWeight: 500, color: "#1a1a1a", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12,
+              }}>
+                <span>{q.category && <span style={{ fontSize: 11, color: "#888", fontWeight: 400, marginRight: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>[{q.category}]</span>}{q.question}</span>
+                <span style={{ fontSize: 16, color: "#aaa", flexShrink: 0 }}>{activeQ === i ? "−" : "+"}</span>
+              </button>
+
+              {activeQ === i && (
+                <div style={{ borderTop: "0.5px solid #e8e6e0", padding: "14px 16px" }}>
+                  {q.tip && <p style={{ fontSize: 12, color: "#888", margin: "0 0 10px", fontStyle: "italic" }}>{q.tip}</p>}
+                  <textarea
+                    value={answers[i] || ""}
+                    onChange={e => setAnswers(a => ({ ...a, [i]: e.target.value }))}
+                    placeholder="Type your answer here — use STAR format (Situation, Task, Action, Result)..."
+                    rows={6}
+                    style={{ width: "100%", fontSize: 13, padding: 10, borderRadius: 8, border: "0.5px solid #d0cec4", fontFamily: "inherit", resize: "vertical", lineHeight: 1.6, boxSizing: "border-box" }}
+                  />
+                  <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+                    <button onClick={() => getFeedback(q.question, i)} disabled={loadingFeedback === i || !answers[i]?.trim()} style={btn(true, true)}>
+                      {loadingFeedback === i ? "Getting feedback..." : "Get feedback"}
+                    </button>
+                    {feedbacks[i] && (
+                      <button onClick={() => setFeedbacks(f => ({ ...f, [i]: null }))} style={btn(false, true)}>Clear feedback</button>
+                    )}
+                  </div>
+                  <FeedbackBlock feedback={feedbacks[i]} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DecompTab() {
+  const [phase, setPhase] = useState("idle"); // idle | interview | done
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [solution, setSolution] = useState("");
+  const [questionTitle, setQuestionTitle] = useState("");
+  const chatEndRef = useRef(null);
+
+  useEffect(() => {
+    if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
+  async function startInterview() {
+    setPhase("interview");
+    setMessages([]);
+    setSolution("");
+    setLoading(true);
+    try {
+      const r = await fetch("/api/decomp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start", messages: [] }),
+      });
+      const d = await r.json();
+      if (d.reply) {
+        setMessages([{ role: "interviewer", content: d.reply }]);
+        if (d.questionTitle) setQuestionTitle(d.questionTitle);
+      }
+    } catch {}
+    setLoading(false);
+  }
+
+  async function sendMessage() {
+    if (!input.trim() || loading) return;
+    const userMsg = { role: "user", content: input.trim() };
+    const updated = [...messages, userMsg];
+    setMessages(updated);
+    setInput("");
+    setLoading(true);
+    try {
+      const r = await fetch("/api/decomp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "respond", messages: updated }),
+      });
+      const d = await r.json();
+      if (d.reply) setMessages(m => [...m, { role: "interviewer", content: d.reply }]);
+    } catch {}
+    setLoading(false);
+  }
+
+  async function endInterview() {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/decomp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "solution", messages }),
+      });
+      const d = await r.json();
+      if (d.solution) setSolution(d.solution);
+    } catch {}
+    setPhase("done");
+    setLoading(false);
+  }
+
+  if (phase === "idle") return (
+    <div style={{ maxWidth: 760, margin: "0 auto" }}>
+      <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 6px" }}>Decomp interview</h2>
+      <p style={{ fontSize: 13, color: "#888", margin: "0 0 6px" }}>
+        Simulates the data decomposition / analytical problem-solving exercise. The AI picks a real-style question (sourced from reported Palantir interviews), then plays interviewer — probing your thinking, asking follow-ups, and challenging assumptions.
+      </p>
+      <p style={{ fontSize: 13, color: "#888", margin: "0 0 20px" }}>
+        When you're done, hit "End interview" to see the full worked solution and where you could have gone deeper.
+      </p>
+      <button onClick={startInterview} style={btn(true)}>Start decomp interview</button>
+    </div>
+  );
+
+  return (
+    <div style={{ maxWidth: 760, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 2px" }}>Decomp interview</h2>
+          {questionTitle && <p style={{ fontSize: 12, color: "#888", margin: 0 }}>{questionTitle}</p>}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {phase === "interview" && (
+            <button onClick={endInterview} disabled={loading} style={btn(false, true)}>End interview + show solution</button>
+          )}
+          <button onClick={() => { setPhase("idle"); setMessages([]); setSolution(""); }} style={btn(false, true)}>New question</button>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 16 }}>
+        {messages.map((m, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+            <div style={{ maxWidth: "82%", padding: "11px 15px", borderRadius: 10, fontSize: 13, lineHeight: 1.75, whiteSpace: "pre-wrap",
+              background: m.role === "user" ? "#1a1a1a" : "#f0eeea",
+              color: m.role === "user" ? "#fff" : "#1a1a1a",
+            }}>
+              {m.role === "interviewer" && <div style={{ fontSize: 11, color: "#888", marginBottom: 4, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em" }}>Interviewer</div>}
+              {m.content}
+            </div>
           </div>
-          {coverLetter}
+        ))}
+        {loading && (
+          <div style={{ display: "flex", justifyContent: "flex-start" }}>
+            <div style={{ padding: "11px 15px", borderRadius: 10, fontSize: 13, background: "#f0eeea", color: "#888" }}>Thinking...</div>
+          </div>
+        )}
+        <div ref={chatEndRef} />
+      </div>
+
+      {solution && (
+        <div style={{ margin: "20px 0", background: "#eaf3de", borderRadius: 10, padding: "16px 18px", border: "0.5px solid #c0dd97" }}>
+          <div style={{ fontSize: 12, fontWeight: 500, color: "#3b6d11", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Full solution + debrief</div>
+          <div style={{ fontSize: 13, lineHeight: 1.75, whiteSpace: "pre-wrap", color: "#1a1a1a" }}>{solution}</div>
+        </div>
+      )}
+
+      {phase === "interview" && (
+        <div style={{ display: "flex", gap: 8, paddingTop: 16, borderTop: "0.5px solid #e0ddd6" }}>
+          <textarea
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+            placeholder="Respond to the interviewer... (Shift+Enter for new line)"
+            rows={3}
+            disabled={loading}
+            style={{ flex: 1, fontSize: 13, padding: "10px 12px", borderRadius: 8, border: "0.5px solid #d0cec4", fontFamily: "inherit", resize: "none", lineHeight: 1.6 }}
+          />
+          <button onClick={sendMessage} disabled={loading || !input.trim()} style={{ ...btn(true), alignSelf: "flex-end", padding: "10px 18px" }}>Send</button>
         </div>
       )}
     </div>
@@ -165,298 +260,24 @@ function JobCard({ job, savedKey, onSave, isSaved, onDraft, coverLetter, draftin
 }
 
 export default function Home() {
-  const [tab, setTab]                   = useState("search");
-  const [context, setContext]           = useState("");
-  const [resumeFiles, setResumeFiles]   = useState([]);
-  const [coverFiles, setCoverFiles]     = useState([]);
-  const [filters, setFilters]           = useState({ levels: [], orgTypes: [], functions: [], leagues: [], locations: [] });
-  const [jobs, setJobs]                 = useState([]);
-  const [loading, setLoading]           = useState(false);
-  const [error, setError]               = useState("");
-  const [sortBy, setSortBy]             = useState("score");
-  const [saved, setSaved]               = useState({});
-  const [statuses, setStatuses]         = useState({});
-  const [coverLetters, setCoverLetters] = useState({});
-  const [drafting, setDrafting]         = useState(null);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [chatInput, setChatInput]       = useState("");
-  const [chatLoading, setChatLoading]   = useState(false);
-  const chatEndRef = useRef(null);
-
-  useEffect(() => {
-    try {
-      const s  = localStorage.getItem("sj_saved");
-      const st = localStorage.getItem("sj_statuses");
-      const ch = localStorage.getItem("sj_chat");
-      if (s)  setSaved(JSON.parse(s));
-      if (st) setStatuses(JSON.parse(st));
-      if (ch) setChatMessages(JSON.parse(ch));
-    } catch {}
-  }, []);
-
-  function toggleFilter(key, val) {
-    setFilters(f => ({ ...f, [key]: f[key].includes(val) ? f[key].filter(x => x !== val) : [...f[key], val] }));
-  }
-
-  async function search(overrideQuery) {
-    setLoading(true); setError(""); setJobs([]); setTab("search");
-    try {
-      const resume = resumeFiles[0] ? { data: resumeFiles[0].data, mediaType: resumeFiles[0].mediaType } : null;
-      const cls = coverFiles.map(f => ({ data: f.data, mediaType: f.mediaType }));
-      const r = await fetch("/api/jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ context, filters, resume, coverLetters: cls, overrideQuery }),
-      });
-      const d = await r.json();
-      if (d.error) throw new Error(d.error);
-      setJobs(d.jobs || []);
-    } catch (e) { setError("Search failed: " + e.message); }
-    setLoading(false);
-  }
-
-  async function draftCover(job, key) {
-    setDrafting(key);
-    try {
-      const resume = resumeFiles[0] ? { data: resumeFiles[0].data, mediaType: resumeFiles[0].mediaType } : null;
-      const cls = coverFiles.map(f => ({ data: f.data, mediaType: f.mediaType }));
-      const r = await fetch("/api/cover", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job, context, resume, coverLetters: cls }),
-      });
-      const d = await r.json();
-      if (d.letter) setCoverLetters(c => ({ ...c, [key]: d.letter }));
-    } catch {}
-    setDrafting(null);
-  }
-
-  function toggleSave(job, key) {
-    setSaved(s => {
-      const next = { ...s };
-      if (next[key]) delete next[key]; else next[key] = job;
-      localStorage.setItem("sj_saved", JSON.stringify(next));
-      return next;
-    });
-  }
-
-  function setStatus(key, status) {
-    setStatuses(s => {
-      const next = { ...s, [key]: status };
-      localStorage.setItem("sj_statuses", JSON.stringify(next));
-      return next;
-    });
-  }
-
-  async function sendChat(text) {
-    const userMsg = { role: "user", content: text };
-    const newMessages = [...chatMessages, userMsg];
-    setChatMessages(newMessages);
-    localStorage.setItem("sj_chat", JSON.stringify(newMessages));
-    setChatInput("");
-    setChatLoading(true);
-    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-    try {
-      const resume = resumeFiles[0] ? { data: resumeFiles[0].data, mediaType: resumeFiles[0].mediaType } : null;
-      const r = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages, context, resume }),
-      });
-      const d = await r.json();
-      if (d.error) throw new Error(d.error);
-      const assistantMsg = { role: "assistant", content: d.reply };
-      const updated = [...newMessages, assistantMsg];
-      setChatMessages(updated);
-      localStorage.setItem("sj_chat", JSON.stringify(updated));
-      if (d.searchParams) {
-        if (d.searchParams.filters) setFilters(f => ({ ...f, ...d.searchParams.filters }));
-        await search(d.searchParams.query);
-      }
-    } catch (e) {
-      const errMsg = { role: "assistant", content: "Sorry, something went wrong. Please try again." };
-      const updated = [...chatMessages, userMsg, errMsg];
-      setChatMessages(updated);
-      localStorage.setItem("sj_chat", JSON.stringify(updated));
-    }
-    setChatLoading(false);
-    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-  }
-
-  const sorted = [...jobs].sort((a, b) => sortBy === "score" ? b.score - a.score : (a.orgType || "").localeCompare(b.orgType || ""));
-  const savedList = Object.entries(saved);
+  const [tab, setTab] = useState("behavioral");
 
   return (
-    <div style={{ display: "flex", height: "100vh", fontFamily: "system-ui, -apple-system, sans-serif", background: "#f5f4f0", color: "#1a1a1a", fontSize: 14 }}>
-
-      {/* Sidebar */}
-      <div style={{ width: 275, background: "#f9f8f5", borderRight: "0.5px solid #d0cec4", padding: "20px 16px", display: "flex", flexDirection: "column", gap: 18, overflowY: "auto", flexShrink: 0 }}>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 500 }}>Sports job finder</div>
-          <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>AI-powered search + cover letters</div>
+    <div style={{ minHeight: "100vh", background: "#f5f4f0", fontFamily: "system-ui, -apple-system, sans-serif", color: "#1a1a1a" }}>
+      <div style={{ background: "#fff", borderBottom: "0.5px solid #d0cec4", padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 56 }}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <span style={{ fontSize: 15, fontWeight: 500 }}>Palantir interview prep</span>
+          <span style={{ fontSize: 11, color: "#888" }}>Deployment Strategist · Phone screen · March 27</span>
         </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ fontSize: 11, fontWeight: 500, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em" }}>Your context</div>
-          <textarea value={context} onChange={e => setContext(e.target.value)}
-            placeholder="Tell the AI about yourself — degree, school, experience, dream orgs, preferred cities, salary range, anything to avoid..."
-            rows={4} style={{ width: "100%", fontSize: 12, padding: 10, borderRadius: 8, border: "0.5px solid #d0cec4", background: "#fff", fontFamily: "inherit", resize: "vertical", lineHeight: 1.6, color: "#333", boxSizing: "border-box" }} />
-          <UploadZone label="Resume" files={resumeFiles} onAdd={f => setResumeFiles([f])} onRemove={() => setResumeFiles([])} maxFiles={1} />
-          <UploadZone label="Cover letter examples" files={coverFiles} onAdd={f => setCoverFiles(c => [...c, f])} onRemove={i => setCoverFiles(c => c.filter((_, j) => j !== i))} maxFiles={3} />
+        <div style={{ display: "flex", gap: 24, height: "100%", alignItems: "center" }}>
+          <TabBtn label="Behavioral" active={tab === "behavioral"} onClick={() => setTab("behavioral")} />
+          <TabBtn label="Decomp" active={tab === "decomp"} onClick={() => setTab("decomp")} />
         </div>
-
-        <div style={{ height: "0.5px", background: "#e0ddd6" }} />
-
-        <FilterGroup label="Level"          options={LEVELS}    active={filters.levels}    onToggle={v => toggleFilter("levels", v)} />
-        <FilterGroup label="Org type"       options={ORG_TYPES} active={filters.orgTypes}  onToggle={v => toggleFilter("orgTypes", v)} />
-        <FilterGroup label="Function"       options={FUNCTIONS} active={filters.functions} onToggle={v => toggleFilter("functions", v)} />
-        <FilterGroup label="League / sport" options={LEAGUES}   active={filters.leagues}   onToggle={v => toggleFilter("leagues", v)} />
-        <FilterGroup label="Location"       options={LOCATIONS} active={filters.locations} onToggle={v => toggleFilter("locations", v)} />
-
-        <button onClick={() => search()} disabled={loading} style={{ padding: 10, background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: loading ? "default" : "pointer", fontFamily: "inherit", marginTop: 4 }}>
-          {loading ? "Searching..." : "Find jobs"}
-        </button>
       </div>
 
-      {/* Main */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-
-        {/* Tab bar */}
-        <div style={{ borderBottom: "0.5px solid #d0cec4", background: "#fff", padding: "0 24px", display: "flex", alignItems: "center", gap: 24, height: 52, flexShrink: 0 }}>
-          <TabBtn label="Results"  count={jobs.length}      active={tab === "search"} onClick={() => setTab("search")} />
-          <TabBtn label="Saved"    count={savedList.length} active={tab === "saved"}  onClick={() => setTab("saved")} />
-          <TabBtn label="Strategy" count={chatMessages.filter(m => m.role === "user").length} active={tab === "chat"} onClick={() => setTab("chat")} />
-        </div>
-
-        <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
-
-          {/* Results tab */}
-          {tab === "search" && (
-            <>
-              {loading && <div style={{ textAlign: "center", padding: "4rem 0", color: "#888" }}>Searching job boards and league career pages...</div>}
-              {error && <div style={{ background: "#fcebeb", border: "0.5px solid #f09595", borderRadius: 8, padding: 12, fontSize: 13, color: "#a32d2d", marginBottom: 16 }}>{error}</div>}
-              {!loading && jobs.length > 0 && (
-                <>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                    <div style={{ fontSize: 13, color: "#888" }}>{jobs.length} jobs found</div>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      <span style={{ fontSize: 12, color: "#888" }}>Sort:</span>
-                      {[["score", "Best fit"], ["org", "Org type"]].map(([v, l]) => (
-                        <button key={v} onClick={() => setSortBy(v)} style={{ ...btn(sortBy === v), padding: "4px 10px" }}>{l}</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {sorted.map((job, i) => {
-                      const key = job.title + "|" + job.company;
-                      return <JobCard key={i} job={job} savedKey={key} onSave={toggleSave} isSaved={!!saved[key]} onDraft={draftCover} coverLetter={coverLetters[key]} drafting={drafting} />;
-                    })}
-                  </div>
-                </>
-              )}
-              {!loading && jobs.length === 0 && !error && (
-                <div style={{ textAlign: "center", padding: "5rem 0", color: "#888" }}>
-                  <div style={{ fontSize: 15, color: "#555", marginBottom: 8 }}>Add your context and hit Find jobs</div>
-                  <div style={{ fontSize: 13 }}>The more detail you add, the better the results</div>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Saved tab */}
-          {tab === "saved" && (
-            <div>
-              {savedList.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "5rem 0", color: "#888", fontSize: 13 }}>No saved jobs yet — save jobs from search results to track them here.</div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {savedList.map(([key, job]) => {
-                    const status = statuses[key] || "Saved";
-                    const sc = STATUS_STYLE[status];
-                    return (
-                      <div key={key} style={{ border: "0.5px solid #d0cec4", borderRadius: 10, padding: "14px 16px", background: "#fff", display: "flex", flexDirection: "column", gap: 10 }}>
-                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                          <div>
-                            <div style={{ fontSize: 14, fontWeight: 500 }}>{job.title}</div>
-                            <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{job.company}{job.location ? ` · ${job.location}` : ""}</div>
-                          </div>
-                          <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 500, background: sc.bg, color: sc.color, flexShrink: 0 }}>{status}</span>
-                        </div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                          {STATUSES.map(s => (
-                            <button key={s} onClick={() => setStatus(key, s)} style={{
-                              padding: "4px 11px", borderRadius: 20, fontSize: 11, cursor: "pointer", fontFamily: "inherit",
-                              border: status === s ? "0.5px solid #afa9ec" : "0.5px solid #d0cec4",
-                              background: status === s ? "#eeedfe" : "#fff",
-                              color: status === s ? "#3c3489" : "#666",
-                            }}>{s}</button>
-                          ))}
-                        </div>
-                        <div style={{ display: "flex", gap: 8 }}>
-                          {job.url && <a href={job.url} target="_blank" rel="noopener noreferrer" style={{ ...btn(false), textDecoration: "none", display: "inline-flex", alignItems: "center", fontSize: 12 }}>View posting ↗</a>}
-                          <button style={btn(false)} onClick={() => toggleSave(job, key)}>Remove</button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Strategy / chat tab */}
-          {tab === "chat" && (
-            <div style={{ display: "flex", flexDirection: "column", minHeight: "100%" }}>
-              {chatMessages.length === 0 && (
-                <div style={{ marginBottom: 24 }}>
-                  <p style={{ fontSize: 13, color: "#888", marginBottom: 12 }}>Ask anything about your job search strategy, or try one of these:</p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {STARTER_PROMPTS.map((p, i) => (
-                      <button key={i} onClick={() => sendChat(p)} style={{ ...btn(false), textAlign: "left", padding: "8px 12px", fontSize: 13 }}>{p}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 16 }}>
-                {chatMessages.map((m, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-                    <div style={{
-                      maxWidth: "80%", padding: "10px 14px", borderRadius: 10, fontSize: 13, lineHeight: 1.7,
-                      background: m.role === "user" ? "#1a1a1a" : "#f0eeea",
-                      color: m.role === "user" ? "#fff" : "#1a1a1a",
-                      whiteSpace: "pre-wrap",
-                    }}>
-                      {m.content}
-                    </div>
-                  </div>
-                ))}
-                {chatLoading && (
-                  <div style={{ display: "flex", justifyContent: "flex-start" }}>
-                    <div style={{ padding: "10px 14px", borderRadius: 10, fontSize: 13, background: "#f0eeea", color: "#888" }}>Thinking...</div>
-                  </div>
-                )}
-                <div ref={chatEndRef} />
-              </div>
-
-              <div style={{ display: "flex", gap: 8, paddingTop: 16, borderTop: "0.5px solid #e0ddd6", marginTop: "auto" }}>
-                <input
-                  value={chatInput}
-                  onChange={e => setChatInput(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && chatInput.trim() && sendChat(chatInput.trim())}
-                  placeholder="Ask about strategy, or say 'find me NBA ops roles in NYC'..."
-                  style={{ flex: 1, fontSize: 13, padding: "8px 12px" }}
-                  disabled={chatLoading}
-                />
-                <button onClick={() => chatInput.trim() && sendChat(chatInput.trim())} disabled={chatLoading || !chatInput.trim()} style={{ ...btn(true), padding: "8px 16px", fontSize: 13 }}>Send</button>
-                {chatMessages.length > 0 && (
-                  <button onClick={() => { setChatMessages([]); localStorage.removeItem("sj_chat"); }} style={{ ...btn(false), fontSize: 13 }}>Clear</button>
-                )}
-              </div>
-            </div>
-          )}
-
-        </div>
+      <div style={{ padding: "32px 32px" }}>
+        {tab === "behavioral" && <BehavioralTab />}
+        {tab === "decomp" && <DecompTab />}
       </div>
     </div>
   );

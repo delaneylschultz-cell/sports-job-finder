@@ -3,59 +3,44 @@ import Anthropic from "@anthropic-ai/sdk";
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
-  const { messages, context, resume } = req.body;
+  const { question, answer } = req.body;
 
-  const system = `You are a sports industry career strategist helping a sports management master's student find and land their ideal job. You have deep knowledge of the sports industry — teams, leagues, agencies, career paths, hiring timelines, what different roles actually involve day-to-day, and how to break in.
+  const system = `You are an expert Palantir interview coach giving feedback on a behavioral answer for a Deployment Strategist role. Palantir values: outcomes and impact, self-awareness, intellectual curiosity, adaptability, and mission alignment.
 
-Be direct, specific, and practical. No generic advice. Draw on the candidate's actual background when giving advice. Keep responses concise — use short paragraphs or bullet points separated by line breaks, not long walls of text. Max 3-4 short paragraphs or a brief bulleted list.
+The candidate is Delaney Schultz — McKinsey Business Analyst (energy sector, Bangalore capability center), Gates Foundation AI strategy (Africa AI Scaling Hubs, Rwanda/Nigeria/Senegal/Kenya), CS + Cognitive Science from Rice University, D1 soccer (Conference USA Player of the Year). Strong on analytical rigor, real operational build experience, and AI deployment in complex environments.
 
-CANDIDATE CONTEXT:
-${context || "Sports management master's student seeking entry-level or coordinator roles in the sports industry."}
+Give feedback in this exact structure:
+**What landed well**
+[2-3 specific things that worked about the answer]
 
-If the user asks you to search for jobs or find specific roles, respond normally AND include a search block at the very end of your message in this exact format:
-<search>{"query": "specific search query here", "filters": {"levels": [], "orgTypes": [], "functions": [], "leagues": [], "locations": []}}</search>
+**What to sharpen**
+[2-3 concrete, specific improvements — not generic advice]
 
-Only include the <search> block when the user is explicitly asking to find or search for jobs. Otherwise just respond normally as a career advisor.`;
+**Missing angles to add**
+[1-2 things from her actual background she should weave in that she didn't mention]
+
+**Revised strong opening line**
+[Rewrite just the first 1-2 sentences to be more direct and impactful]
+
+Be direct and specific. Reference her actual background where relevant. No fluff.`;
+
+  const prompt = `Palantir interview question: "${question}"
+
+Candidate's answer: "${answer}"
+
+Give structured feedback.`;
 
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const apiMessages = messages.map((m, i) => {
-      if (i === 0 && m.role === "user" && resume) {
-        return {
-          role: "user",
-          content: [
-            { type: "document", source: { type: "base64", media_type: resume.mediaType, data: resume.data }, title: "Candidate resume" },
-            { type: "text", text: m.content }
-          ]
-        };
-      }
-      return { role: m.role, content: m.content };
-    });
-
     const msg = await client.messages.create({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 1500,
+      max_tokens: 1000,
       system,
-      messages: apiMessages,
+      messages: [{ role: "user", content: prompt }],
     });
-
-    const text = msg.content
-      .filter(b => b.type === "text")
-      .map(b => b.text)
-      .join("");
-
-    const searchMatch = text.match(/<search>([\s\S]*?)<\/search>/);
-    const cleanText = text.replace(/<search>[\s\S]*?<\/search>/, "").trim();
-
-    let searchParams = null;
-    if (searchMatch) {
-      try { searchParams = JSON.parse(searchMatch[1]); } catch {}
-    }
-
-    res.json({ reply: cleanText, searchParams });
+    const feedback = msg.content.filter(b => b.type === "text").map(b => b.text).join("");
+    res.json({ feedback });
   } catch (e) {
-    console.error("Chat API error:", e);
     res.status(500).json({ error: e.message });
   }
 }
