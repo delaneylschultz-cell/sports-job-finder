@@ -3,20 +3,46 @@ import Anthropic from "@anthropic-ai/sdk";
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
-  const system = `You are an expert Palantir interview coach. Search the web for real reported Palantir Deployment Strategist interview questions from Reddit, Glassdoor, Blind, and the Palantir blog. Combine these with your knowledge of the DS role to generate a comprehensive set of behavioral prep questions. Return ONLY a valid JSON array — no markdown, no explanation.
+  const system = `You are an expert Palantir interview coach. Search the web for real reported Palantir Deployment Strategist behavioral interview questions, then generate highly specific personalized questions for this exact candidate. Return ONLY a valid JSON array — no markdown, no explanation, no backticks.
 
-Each question object must have:
-- "question": the interview question string
-- "category": one of "Background & motivation", "Execution & impact", "Failure & reflection", "Problem solving", "Leadership & influence", "Palantir-specific"
-- "tip": one short sentence of coaching advice for answering this specific question`;
+Each object must have exactly:
+- "question": the interview question
+- "category": one of "Background & motivation", "Execution & impact", "Failure & reflection", "Data & problem solving", "Leadership & influence", "Palantir-specific", "Curveball"
+- "tip": one sharp coaching note on how THIS candidate should answer given her specific background`;
 
-  const prompt = `Search the web for reported Palantir Deployment Strategist interview questions from Reddit (r/cscareerquestions, r/palantir), Glassdoor, Blind, and Leetcode discuss. Also search "Palantir DS interview experience" and "Palantir deployment strategist behavioral questions".
+  const prompt = `First search the web for:
+1. "Palantir deployment strategist behavioral interview questions site:reddit.com"
+2. "Palantir DS interview experience site:glassdoor.com"
+3. "Palantir echo interview questions site:teamblind.com"
+4. "interviewing at Palantir advice site:medium.com OR site:blog.palantir.com"
 
-Context on the role: Deployment Strategists work directly with government and commercial clients to deploy Palantir's data platforms. They are analytical problem solvers who travel, embed with clients, and work across technical and business teams. The interview values: outcomes over process, self-awareness, intellectual curiosity, and mission alignment.
+Use those real reported questions plus this candidate's background to generate exactly 15 questions split into 3 tiers:
 
-The candidate is Delaney Schultz — McKinsey Business Analyst background, Gates Foundation AI strategy role, CS + Cognitive Science degrees from Rice University, Division I soccer player. She has strong analytical and operational experience across complex institutional environments.
+CANDIDATE BACKGROUND:
+- McKinsey Business Analyst, energy sector. Bangalore capability center was an anchor project — cross-cultural, high-stakes analytical work for senior clients.
+- Gates Foundation Strategy Officer on secondment — leading Africa AI Scaling Hubs across Rwanda, Nigeria, Senegal, Kenya. Building real AI deployment infrastructure in low-resource, complex institutional environments.
+- Internal workstream: Instant Health Intelligence (IHI) — one of three "big bets" in the 2026 AI Core Team portfolio. Coordinating across Shreya, Anne, Erin, Sarah, Scott.
+- Built an AI Grant Management Playbook as a Next.js web app with OpenAI chatbot for program officers — demoed to stakeholders using Rwanda clinical decision-making scenario.
+- Built hubs-tracker dashboard (Next.js, TypeScript, Tailwind, Supabase) for cross-hub use case tracking.
+- Developed AI-readiness framework for delivery partners: PATH, CHAI, eHA, UNICEF.
+- Facilitated sessions at India AI Impact Summit in Delhi. Key insight: AI deployment challenges are institutional, not technical.
+- Cross-Hub Workshop concept note for April 2026 Kenya convening — first time all four hubs convene together.
+- CS + Cognitive Science (neuroscience) from Rice University. D1 soccer — Conference USA Player of the Year, Scholar All-American.
+- Secondment ends July 1
 
-Generate 14 behavioral questions total — a mix of real reported questions from your web search and high-probability questions based on the role. Return as a JSON array only.`;
+TIER 1 — Specific to her background (6 questions):
+Reference her actual projects and experiences by name. Should feel like the interviewer read her resume carefully. Cover her McKinsey work, Gates Foundation build, data work, and her career arc.
+Example tone: "You built the AI Scaling Hubs across four countries with totally different institutional contexts — walk me through a moment where your approach completely didn't work and what you did."
+
+TIER 2 — Classic STAR situational questions (6 questions):
+"Tell me about a time..." format, but pointed toward DS-relevant situations. Must cover: a failure or mistake, a stakeholder who pushed back hard, working with imperfect or incomplete data, persuading someone who disagreed, doing something outside your comfort zone, and a time you changed your mind mid-project.
+Example tone: "Tell me about a time you had to make a recommendation with data you didn't fully trust — how did you handle the uncertainty?"
+
+TIER 3 — Curveball / Palantir-specific (3 questions):
+Should catch her off guard if she hasn't prepared. Include: one about Palantir's controversial government contracts (ICE, military, surveillance), one about travel and lifestyle fit, one that probes a genuine weakness.
+Example tone: "Palantir works with ICE, the military, and surveillance programs that have drawn significant criticism. How do you think about that personally?"
+
+Return all 15 as a raw JSON array only.`;
 
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -31,7 +57,7 @@ Generate 14 behavioral questions total — a mix of real reported questions from
     const text = msg.content.filter(b => b.type === "text").map(b => b.text).join("");
     const clean = text.replace(/```json|```/g, "").trim();
     const match = clean.match(/\[[\s\S]*\]/);
-    if (!match) return res.status(500).json({ error: "Could not generate questions." });
+    if (!match) return res.status(500).json({ error: "Could not generate questions. Try again." });
     res.json({ questions: JSON.parse(match[0]) });
   } catch (e) {
     console.error(e);
